@@ -1,0 +1,13 @@
+# Node.js related
+node_modules/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Editor-specific files
+.idea/
+*.iml
