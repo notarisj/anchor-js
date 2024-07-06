@@ -32,10 +32,11 @@ class Consensus extends EventEmitter {
 
     submitRound(transaction, roundId = null) {
         if (!roundId) {
-            roundId = this.nonce++;
+            this.nonce++
+            roundId = this.nonce;
         }
         const round = new Round(this, roundId);
-        round.setTransaction(transaction);
+        round.transactions.push(transaction);
         this.activeRounds.set(roundId, round);
         round.run();
     }
@@ -50,6 +51,10 @@ class Consensus extends EventEmitter {
 
     commitTransactions(roundId, transactions) {
         this.commitedRounds.set(roundId, transactions);
+    }
+
+    isProposeAccepted(roundId) {
+        return this.proposeAccepted.has(roundId);
     }
 
     sendMessage(message, toNode) {
@@ -79,7 +84,8 @@ class Consensus extends EventEmitter {
         }
     }
 
-    handlePropose(message) {
+    async handlePropose(message) {
+        await setTimeout(10);
         const response = new Message({
             requestServerId: this.nodeId,
             roundId: message.roundId,
@@ -110,7 +116,8 @@ class Consensus extends EventEmitter {
             round.setTransactions(message.content);
             round.signalReceivedCommit();
         }
-        this.commitTransactions(message.roundId, message.content);
+        console.log(`${TimeUtils.getCurrentTime()} C${this.nodeId} Round ${message.roundId} committed with transactions:`, message.content[0]);
+        this.commitTransactions(message.roundId, message.content[0]);
     }
 
     handleForward(message) {
@@ -133,13 +140,8 @@ class Round {
     constructor(consensus, roundId) {
         this.consensus = consensus;
         this.roundId = roundId;
-        this.transaction = null;
         this.transactions = [];
-        this.responseProposeLatch = this.consensus.peers.size;
-    }
-
-    setTransaction(transaction) {
-        this.transaction = transaction;
+        this.responseLatch = this.consensus.connections.length;
     }
 
     setTransactions(transactions) {
@@ -163,45 +165,50 @@ class Round {
                     requestServerId: this.consensus.nodeId,
                     roundId: this.roundId,
                     command: 'COMMIT',
-                    content: [this.transaction]
+                    content: [this.transactions]
                 });
+                this.responseLatch = this.consensus.connections.length;
                 this.consensus.broadcast(commitMessage);
                 this.awaitReceivedAllResponse().then(() => {
-                    console.log(`Round ${this.roundId} committed with transactions:`, this.transactions);
+                    this.consensus.commitTransactions(this.roundId, this.transactions)
+                    this.consensus.activeRounds.delete(this.roundId);
+                    console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} Round ${this.roundId} committed with transactions:`, this.transactions);
                 });
             });
-            this.consensus.commitTransactions(this.roundId, this.transactions)
+
         } else {
-            const forwardMessage = new Message({
-                requestServerId: this.consensus.nodeId,
-                roundId: this.roundId,
-                toServer: this.getCoordinator(),
-                command: 'FORWARD',
-                content: this.transaction
-            });
-            // this.consensus.getPeer(forwardMessage.toServer).sendMessage(forwardMessage);
-            // this.consensus.connections[forwardMessage.toServer].emit('message', forwardMessage);
-            this.consensus.sendMessage(forwardMessage, forwardMessage.toServer)
+            if (this.consensus.isProposeAccepted(this.roundId)) {
+                console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} Round ${this.roundId} Already accepted propose command or round is commited. Submitting new round...`);
+                this.consensus.submitRound(this.transactions.pop());
+            } else {
+                const forwardMessage = new Message({
+                    requestServerId: this.consensus.nodeId,
+                    roundId: this.roundId,
+                    toServer: this.getCoordinator(),
+                    command: 'FORWARD',
+                    content: this.transactions.pop()
+                });
+                this.consensus.sendMessage(forwardMessage, this.getCoordinator());
+            }
         }
-        this.consensus.activeRounds.delete(this.roundId);
     }
 
     getCoordinator() {
-        return this.roundId % (this.consensus.peers.size + 1) + 1;
+        return this.roundId % (this.consensus.connections.length + 1) + 1;
     }
 
     async awaitReceivedAllResponse() {
-        while (this.responseProposeLatch > 0) {
+        while (this.responseLatch > 0) {
             await setTimeout(10);
         }
     }
 
     countDownLatch() {
-        this.responseProposeLatch -= 1;
+        this.responseLatch -= 1;
     }
 
     signalReceivedCommit() {
-        console.log(`Round ${this.roundId} received commit.`);
+        console.log(`${TimeUtils.getCurrentTime()} Round ${this.roundId} received commit.`);
     }
 }
 
@@ -223,6 +230,7 @@ consensusNodes.forEach(consensus => {
 });
 
 // Simulate submitting a round
-consensusNodes[0].submitRound('transaction_1');
-consensusNodes[1].submitRound('transaction_2');
+
+consensusNodes[1].submitRound('transaction_1');
 consensusNodes[2].submitRound('transaction_3');
+consensusNodes[0].submitRound('transaction_2');
