@@ -1,0 +1,12 @@
+body {
+    font-family: Arial, sans-serif;
+}
+
+svg {
+    border: 1px solid black;
+    border-radius: 15px;
+}
+
+div {
+    margin-bottom: 20px;
+}
