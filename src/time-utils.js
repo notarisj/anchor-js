@@ -1,4 +1,4 @@
-// timeUtils.js
+// time-utils.js
 
 class TimeUtils {
     static getCurrentTime() {
