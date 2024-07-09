@@ -11,7 +11,8 @@ const popover1 = document.getElementById("popoverButton1");
 const popover2 = document.getElementById("popoverButton2");
 const popover3 = document.getElementById("popoverButton3");
 
-const awaitTime = 5000;
+const speedSlider = document.getElementById("speedSlider");
+let awaitTime = document.getElementById("speedValue");
 
 let transactionCounter = 0;
 
@@ -260,9 +261,12 @@ sendMessageButton.addEventListener("click", () => {
     })
 });
 
+speedSlider.addEventListener("input", function () {
+    awaitTime = this.value;
+});
+
 popover1.addEventListener("click", () => {
     Utils.displayCommittedRounds(1, consensusNodes[0].commitedRounds);
-
 });
 
 popover2.addEventListener("click", () => {
