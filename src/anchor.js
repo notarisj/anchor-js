@@ -12,7 +12,7 @@ const popover2 = document.getElementById("popoverButton2");
 const popover3 = document.getElementById("popoverButton3");
 
 const speedSlider = document.getElementById("speedSlider");
-let awaitTime = document.getElementById("speedValue");
+let awaitTime = speedSlider.value;
 
 let transactionCounter = 0;
 
@@ -44,11 +44,12 @@ class Consensus extends EventEmitter {
 
     async submitRound(transaction, roundId = null, displayTransaction = false) {
         if (displayTransaction) {
-            visualization.sendMessage(visualization.clients[this.nodeId - 1], visualization.nodes[this.nodeId - 1], `${transaction}`, "black", this.nonce);
+            visualization.sendMessage(visualization.clients[this.nodeId - 1], visualization.nodes[this.nodeId - 1], `${transaction}`, this.nonce);
             await setTimeoutPromise(awaitTime);
         }
-        this.nonce++;
+
         if (roundId == null) {
+            this.nonce++;
             roundId = this.nonce;
         }
         Utils.updateRoundId(this.nodeId, roundId);
@@ -81,7 +82,7 @@ class Consensus extends EventEmitter {
         // await setTimeoutPromise(awaitTime);
         console.log(`${TimeUtils.getCurrentTime()} C${this.nodeId} sending message:`, message);
         // this.connections[toNode].emit('message', message);
-        visualization.sendMessage(visualization.nodes[message.requestServerId - 1], visualization.nodes[toNode - 1], message.command, "black", message.roundId);
+        visualization.sendMessage(visualization.nodes[message.requestServerId - 1], visualization.nodes[toNode - 1], message.command, message.roundId);
         this.connections.find(connection => connection.nodeId === toNode).emit('message', message);
     }
 
@@ -135,8 +136,9 @@ class Consensus extends EventEmitter {
             toServer: message.requestServerId,
             command: 'ACCEPT'
         });
-        if (visualization.nodes[this.nodeId - 1].rounds && visualization.nodes[this.nodeId - 1].rounds[message.roundId - 1]) {
-            visualization.sendMessage(visualization.nodes[this.nodeId - 1].rounds[message.roundId - 1], visualization.nodes[this.nodeId - 1], message.command, "black", message.roundId, false);
+        const rounds = visualization.nodes[this.nodeId - 1].rounds;
+        if (rounds && visualization.findRound(rounds, message.roundId)) {
+            visualization.sendMessage(visualization.findRound(rounds, message.roundId), visualization.nodes[this.nodeId - 1], message.command, message.roundId, false);
         }
         this.sendMessage(response, response.toServer)
         const round = this.activeRounds.get(message.roundId);
@@ -161,7 +163,7 @@ class Consensus extends EventEmitter {
     broadcast(message) {
         console.log(`${TimeUtils.getCurrentTime()} C${this.nodeId} broadcasting message:`, message);
         this.connections.forEach(consensus => {
-            visualization.sendMessage(visualization.nodes[message.requestServerId - 1], visualization.nodes[consensus.nodeId - 1], message.command, "black", message.roundId);
+            visualization.sendMessage(visualization.nodes[message.requestServerId - 1], visualization.nodes[consensus.nodeId - 1], message.command, message.roundId);
             consensus.emit('message', message);
         });
     }
@@ -201,8 +203,9 @@ class Round {
                 this.responseLatch = this.consensus.connections.length;
                 this.consensus.broadcast(commitMessage);
                 this.awaitReceivedAllResponse().then(() => {
-                    if (visualization.nodes[this.consensus.nodeId - 1].rounds && visualization.nodes[this.consensus.nodeId - 1].rounds[this.roundId - 1]) {
-                        visualization.sendMessage(visualization.nodes[this.consensus.nodeId - 1].rounds[this.roundId - 1], visualization.nodes[this.consensus.nodeId - 1], "COMMIT", "black", this.roundId, false);
+                    const rounds = visualization.nodes[this.consensus.nodeId - 1].rounds;
+                    if (rounds && visualization.findRound(rounds, this.roundId)) {
+                        visualization.sendMessage(visualization.findRound(rounds, this.roundId), visualization.nodes[this.consensus.nodeId - 1], "COMMIT", this.roundId, false);
                     }
                     this.consensus.commitTransactions(this.roundId, this.transactions)
                     this.consensus.activeRounds.delete(this.roundId);
@@ -229,10 +232,10 @@ class Round {
     }
 
     getCoordinator() {
-        const coordinator = this.roundId % (this.consensus.connections.length + 1) + 1;
-        console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} roundId is ${this.roundId}`)
-        console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} coordinator is ${coordinator}`)
-        return coordinator;
+        // const coordinator = this.roundId % (this.consensus.connections.length + 1) + 1;
+        // console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} roundId is ${this.roundId}`)
+        // console.log(`${TimeUtils.getCurrentTime()} C${this.consensus.nodeId} coordinator is ${coordinator}`)
+        return this.roundId % (this.consensus.connections.length + 1) + 1;
     }
 
     async awaitReceivedAllResponse() {
@@ -255,10 +258,15 @@ visualization.initialize();
 
 sendMessageButton.addEventListener("click", () => {
     const selectedClients = Array.from(clientSelect.selectedOptions).map(option => visualization.clients[option.value]);
-    selectedClients.forEach(client => {
-        transactionCounter++;
-        consensusNodes[client.id - 1].submitRound(`transaction_${transactionCounter}`, null, true)
-    })
+    if (selectedClients.length !== 0) {
+        selectedClients.forEach(client => {
+            transactionCounter++;
+            consensusNodes[client.id - 1].submitRound(`transaction_${transactionCounter}`, null, true)
+        })
+    } else {
+        alert("Please select at least one client!");
+    }
+
 });
 
 speedSlider.addEventListener("input", function () {
@@ -275,6 +283,12 @@ popover2.addEventListener("click", () => {
 
 popover3.addEventListener("click", () => {
     Utils.displayCommittedRounds(3, consensusNodes[2].commitedRounds);
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        sendMessageButton.click();
+    }
 });
 
 resetButton.addEventListener("click", visualization.resetVisualization);

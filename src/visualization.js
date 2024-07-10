@@ -1,8 +1,6 @@
 // visualization.js
 
 const svg = d3.select("svg");
-    // width = svg.attr("width"),
-    // height = svg.attr("height");
 
 class Visualization {
     constructor(animationSpeed) {
@@ -23,9 +21,9 @@ class Visualization {
         });
 
         this.nodes = [
-            { id: 1, x: 200, y: 400, rounds: [], pendingAccepts: 0 },
-            { id: 2, x: 500, y: 200, rounds: [], pendingAccepts: 0 },
-            { id: 3, x: 800, y: 400, rounds: [], pendingAccepts: 0 }
+            { id: 1, x: 200, y: 400, rounds: []},
+            { id: 2, x: 500, y: 200, rounds: []},
+            { id: 3, x: 800, y: 400, rounds: []}
         ];
 
         this.clients = [
@@ -80,10 +78,8 @@ class Visualization {
             .text(d => 'C' + d.id);
     }
 
-    sendMessage(source, target, message, color, round, pickRound = true, curveDirection = 'none') {
-        // let mySource = null;
-        // let myTarget = null;
-
+    sendMessage(source, target, message, round, pickRound = true, curveDirection = 'none') {
+        const color = getColor(message);
         if (source.rounds && source.rounds.find(r => r.id === round) && pickRound && !message.startsWith("transaction_")) {
             source = source.rounds.find(r => r.id === round);
         }
@@ -91,16 +87,6 @@ class Visualization {
         if (target.rounds && target.rounds.find(r => r.id === round) && pickRound && !message.startsWith("transaction_")) {
             target = target.rounds.find(r => r.id === round);
         }
-
-        // if (source === target && message === "COMMIT") {
-        //     source = source.rounds[round - 1];
-        // } else if (source.rounds && source.rounds[round - 1]) {
-        //     source = source.rounds[round - 1];
-        // }
-        //
-        // if (target.rounds && target.rounds[round - 1] && message !== "COMMIT") {
-        //     target = target.rounds[round - 1];
-        // }
 
         const midX = (source.x + target.x) / 2;
         const midY = (source.y + target.y) / 2;
@@ -164,6 +150,25 @@ class Visualization {
     removeAllRounds() {
         svg.selectAll("circle").filter((d, i, nodes) => d3.select(nodes[i]).attr("fill") === "lightgreen").remove();
         svg.selectAll("text").filter((d, i, nodes) => nodes[i].textContent.startsWith("R")).remove();
+    }
+
+    findRound(rounds, roundId) {
+        return rounds.find(r => r.id === roundId);
+    }
+}
+
+function getColor(message) {
+    switch(message) {
+        case "PROPOSE":
+            return "blue";
+        case "FORWARD":
+            return "purple";
+        case "COMMIT":
+            return "red";
+        case "ACCEPT":
+            return "green";
+        default:
+            return "black"
     }
 }
 
