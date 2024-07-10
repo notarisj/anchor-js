@@ -156,6 +156,7 @@ class Consensus extends EventEmitter {
         if (this.roundIsRunning(message.roundId)) {
             this.activeRounds.get(message.roundId).addTransaction(message.content)
         } else if (!this.roundExists(message.roundId)) {
+            this.nonce = Math.max(this.nonce, message.roundId);
             this.submitRound(message.content, message.roundId);
         }
     }
