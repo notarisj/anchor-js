@@ -2,6 +2,9 @@
 
 const svg = d3.select("svg");
 
+// Create a group to contain all nodes and clients
+const g = svg.append("g");
+
 class Visualization {
     constructor(animationSpeed) {
         this.animationSpeed = animationSpeed;
@@ -34,10 +37,11 @@ class Visualization {
 
         this.createNodeElements();
         this.createClientElements();
+        this.makeDraggable();
     }
 
     createNodeElements() {
-        svg.append("g")
+        g.append("g")
             .selectAll("circle")
             .data(this.nodes)
             .enter().append("circle")
@@ -46,7 +50,7 @@ class Visualization {
             .attr("r", 60)
             .attr("fill", "lightblue");
 
-        svg.append("g")
+        g.append("g")
             .selectAll("text")
             .data(this.nodes)
             .enter().append("text")
@@ -58,7 +62,7 @@ class Visualization {
     }
 
     createClientElements() {
-        svg.append("g")
+        g.append("g")
             .selectAll("circle")
             .data(this.clients)
             .enter().append("circle")
@@ -67,7 +71,7 @@ class Visualization {
             .attr("r", 20)
             .attr("fill", "orange");
 
-        svg.append("g")
+        g.append("g")
             .selectAll("text")
             .data(this.clients)
             .enter().append("text")
@@ -76,6 +80,32 @@ class Visualization {
             .attr("dy", 6)
             .attr("text-anchor", "middle")
             .text(d => 'C' + d.id);
+    }
+
+    makeDraggable() {
+        const drag = d3.drag()
+            .on("start", (event) => {
+                // Store the initial position
+                const transform = g.attr("transform");
+                if (transform) {
+                    const translate = transform.match(/translate\(([^)]+)\)/)[1].split(",");
+                    this.initialX = parseFloat(translate[0]);
+                    this.initialY = parseFloat(translate[1]);
+                } else {
+                    this.initialX = 0;
+                    this.initialY = 0;
+                }
+                this.startX = event.x;
+                this.startY = event.y;
+            })
+            .on("drag", (event) => {
+                // Calculate the new position
+                const dx = event.x - this.startX;
+                const dy = event.y - this.startY;
+                g.attr("transform", `translate(${this.initialX + dx},${this.initialY + dy})`);
+            });
+
+        g.call(drag);
     }
 
     sendMessage(source, target, message, round, pickRound = true, curveDirection = 'none') {
@@ -98,7 +128,7 @@ class Visualization {
             `M ${source.x} ${source.y} L ${target.x} ${target.y}` :
             `M ${source.x} ${source.y} C ${midX} ${controlPointY}, ${midX} ${controlPointY}, ${target.x} ${target.y}`;
 
-        const path = svg.append("path")
+        const path = g.append("path")
             .attr("d", pathD)
             .attr("stroke", color)
             .attr("stroke-width", 2)
@@ -113,7 +143,7 @@ class Visualization {
             .attr("stroke-dashoffset", 0)
             .on("end", () => path.remove());
 
-        svg.append("text")
+        g.append("text")
             .attr("x", midX)
             .attr("y", curveDirection !== "none" ? midY + textOffset : midY)
             .attr("dy", -5)
@@ -128,13 +158,13 @@ class Visualization {
         const roundY = node.y + 150 + node.rounds.length * 30;
         node.rounds.push({ id: round, x: node.x, y: roundY, accepts: 0 });
 
-        svg.append("circle")
+        g.append("circle")
             .attr("cx", node.x)
             .attr("cy", roundY)
             .attr("r", 20)
             .attr("fill", "lightgreen");
 
-        svg.append("text")
+        g.append("text")
             .attr("x", node.x)
             .attr("y", roundY)
             .attr("dy", 3)
@@ -148,8 +178,8 @@ class Visualization {
     }
 
     removeAllRounds() {
-        svg.selectAll("circle").filter((d, i, nodes) => d3.select(nodes[i]).attr("fill") === "lightgreen").remove();
-        svg.selectAll("text").filter((d, i, nodes) => nodes[i].textContent.startsWith("R")).remove();
+        g.selectAll("circle").filter((d, i, nodes) => d3.select(nodes[i]).attr("fill") === "lightgreen").remove();
+        g.selectAll("text").filter((d, i, nodes) => nodes[i].textContent.startsWith("R")).remove();
     }
 
     findRound(rounds, roundId) {
